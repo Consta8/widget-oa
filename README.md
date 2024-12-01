@@ -4,6 +4,28 @@ This is a simple chat widget for OpenAI Assistants. It is built with React, Vite
 
 If you want, you can use this widget as a starting point to build your own chat widget.
 
+Also exist as a React component for easily adding a Widget for OpenAI Assistants from WidgetPlatform.com to your website: [https://github.com/widgetplatform/widget-oa-react/](https://github.com/widgetplatform/widget-oa-react/).
+
+[See DEMO on widgetplatform.com](https://widgetplatform.com) 
+
+## Preview
+
+![Preview OpenAI Assistant Widget](https://widgetplatform.com/images/chat-widget-preview.png)
+
+## Links
+- [Documentation](https://docs.widgetplatform.com)
+- [NPM](https://www.npmjs.com/package/widget-oa-react)
+- [Website](https://widgetplatform.com)
+
+## Features
+
+- 🚀 Easy to integrate
+- 🔄 Single instance across page navigation
+- 📱 Responsive design
+- 🎨 Customizable appearance
+- 📦 Lightweight
+- 💪 TypeScript support
+
 ## Getting Started
 
 1. Clone the repository
