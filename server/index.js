@@ -1,98 +1,62 @@
-import express from 'express';
-import cors from 'cors';
-import OpenAI from 'openai';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
+const chatBox = document.getElementById("chat");
+const form = document.getElementById("chat-form");
+const input = document.getElementById("chat-input");
 
-dotenv.config();
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-// dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Serve static app
-app.use('/app', express.static(path.join(__dirname, '../dist/app')));
-
-app.get('/', (req, res) => {
-  res.send('✅ Widget is running. Go to /app/index.html');
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const message = input.value.trim();
+  if (!message) return;
+  input.value = "";
+  addUserMessageToChat(message);
+  await sendMessage(message);
 });
 
-// OpenAI setup
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-const ASSISTANT_ID = process.env.ASSISTANT_ID;
-
-if (!ASSISTANT_ID || !process.env.OPENAI_API_KEY) {
-  console.error('❌ ASSISTANT_ID or OPENAI_API_KEY not set!');
+function addUserMessageToChat(message) {
+  const div = document.createElement("div");
+  div.className = "chat-bubble user";
+  div.innerText = message;
+  chatBox.appendChild(div);
+  scrollToBottom();
 }
 
-// POST /chat
-app.post('/chat', async (req, res) => {
+function addBotMessageToChat(message) {
+  const div = document.createElement("div");
+  div.className = "chat-bubble bot";
+  div.innerText = message;
+  chatBox.appendChild(div);
+  scrollToBottom();
+}
+
+function scrollToBottom() {
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+async function sendMessage(message) {
   try {
-    const { message } = req.body;
-    let threadId = req.headers['x-thread-id'] || null;
+    addBotMessageToChat("💬 Thinking...");
 
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-
-    console.log('📩 Incoming message:', message);
-
-    if (!threadId) {
-      const thread = await openai.beta.threads.create();
-      threadId = thread.id;
-      console.log('🧵 New thread created:', threadId);
-      res.write(`data: ${JSON.stringify({ info: { id: threadId } })}\n\n`);
-      res.flush?.();
-    }
-
-    console.log('🤖 Launching run with assistant:', ASSISTANT_ID);
-
-    const run = await openai.beta.threads.runs.create(threadId, {
-      assistant_id: ASSISTANT_ID,
-      additional_messages: [{ role: "user", content: message }],
-      stream: true,
+    const response = await fetch("/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ message })
     });
 
-    for await (const event of run) {
-      if (event.event === 'thread.message.delta') {
-        const delta = event.data?.delta?.content?.[0];
-        if (delta?.type === 'text') {
-          let chunk = delta.text.value;
-          chunk = chunk.replace(/【\d+:\d+†[^\s】]+】/g, '');
-          if (chunk.trim()) {
-            console.log('📤 Sending chunk:', chunk);
-            res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
-            res.flush?.();
-          }
-        }
-      }
+    const data = await response.json();
+    // удалить "Thinking..." и вставить настоящий ответ
+    const last = chatBox.querySelector(".chat-bubble.bot:last-child");
+    if (data.content) {
+      last.innerText = data.content;
+    } else if (data.error) {
+      last.innerText = "❌ Ошибка: " + data.error;
+    } else {
+      last.innerText = "🤷 Нет ответа от бота.";
     }
 
-    res.write('data: [DONE]\n\n');
-    res.end();
-    console.log('✅ Stream finished');
-
-  } catch (error) {
-    console.error('🔥 ERROR in /chat:', error.message, error);
-    res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
-    res.write('data: [DONE]\n\n');
-    res.end();
+  } catch (err) {
+    const last = chatBox.querySelector(".chat-bubble.bot:last-child");
+    last.innerText = "⚠️ Сбой сети или сервера.";
+    console.error("Chat error:", err);
   }
-});
-
-app.post('/feedback', (req, res) => {
-  console.log('📝 Feedback received:', req.body);
-  res.status(200).json({ message: 'OK' });
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+}
