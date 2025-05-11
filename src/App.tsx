@@ -16,10 +16,9 @@ interface WidgetSettings {
   show_poweredby?: boolean;
   input_placeholder?: string;
   loading_api?: string;
-  loading_openai?: string;
+  loading_app?: string;
   tooltip_reset?: string;
   tooltip_close?: string;
-  loading_app?: string;
 }
 
 const STORAGE_KEYS = {
@@ -39,33 +38,30 @@ function App() {
 
   const [settings, setSettings] = useState<WidgetSettings>({
     welcome_text: '',
-    title: '',
+    title: 'AI ChatBot',
     show_poweredby: true,
     input_placeholder: 'Type your message...',
     loading_api: 'Thinking...',
-    loading_openai: 'Loading...',
+    loading_app: 'Loading chat...',
     tooltip_reset: 'Reset chat',
     tooltip_close: 'Close chat',
-    loading_app: 'Loading chat...'
   });
 
   const [isStreaming, setIsStreaming] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [threadId, setThreadId] = useState<string | null>(() => localStorage.getItem(STORAGE_KEYS.THREAD_ID));
   const [isLoading, setIsLoading] = useState(true);
   const [id, setId] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const widgetId = params.get('id');
-        if (widgetId) setId(widgetId);
-      } catch (_) {}
+    const params = new URLSearchParams(window.location.search);
+    const widgetId = params.get('id');
+    if (widgetId) setId(widgetId);
+
+    setTimeout(() => {
       setIsLoading(false);
       scrollToBottom();
-    };
-    load();
+    }, 300);
   }, []);
 
   useEffect(() => {
@@ -81,41 +77,65 @@ function App() {
     setMessages(prev => [...prev, userMessage]);
     setIsStreaming(true);
 
+    // Показать "Thinking..." как placeholder
+    setMessages(prev => [...prev, { role: 'assistant', content: settings.loading_api || 'Thinking...' }]);
+
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (threadId) {
+        headers['x-thread-id'] = threadId;
+      }
+
       const response = await fetch(API_ENDPOINT, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(threadId ? { 'x-thread-id': threadId } : {})
-        },
+        headers,
         body: JSON.stringify({ message: content })
       });
 
       const result = await response.json();
-      const answer = result.content;
+      const answer = result.content || '🤖 Пустой ответ.';
 
-      setMessages(prev => [...prev, { role: 'assistant', content: answer }]);
+      setMessages(prev => {
+        const newMessages = [...prev];
+        newMessages[newMessages.length - 1] = {
+          role: 'assistant',
+          content: answer
+        };
+        return newMessages;
+      });
+
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ Ошибка получения ответа.' }]);
+      setMessages(prev => {
+        const newMessages = [...prev];
+        newMessages[newMessages.length - 1] = {
+          role: 'assistant',
+          content: '⚠️ Ошибка ответа от сервера.'
+        };
+        return newMessages;
+      });
     } finally {
       setIsStreaming(false);
     }
+  };
+
+  const handleReset = () => {
+    setMessages([]);
+    setThreadId(null);
+    localStorage.removeItem(STORAGE_KEYS.THREAD_ID);
+    localStorage.removeItem(STORAGE_KEYS.MESSAGES);
   };
 
   const handleClose = () => {
     window.parent.postMessage('close-chat', '*');
   };
 
-  const handleReset = () => {
-    setMessages([]);
-    setThreadId(null);
-    localStorage.clear();
-  };
-
   if (isLoading) {
     return (
-      <div className="flex flex-col h-screen bg-white items-center justify-center">
-        <div className="mt-4 text-gray-600">{settings.loading_app}</div>
+      <div className="flex flex-col h-screen items-center justify-center text-gray-500">
+        {settings.loading_app}
       </div>
     );
   }
@@ -125,11 +145,11 @@ function App() {
       <div className="flex items-center justify-between p-4 border-b border-gray-200">
         <h1 className="text-xl font-semibold">{settings.title}</h1>
         <div className="flex gap-2">
-          <button onClick={handleReset} className="p-2 hover:bg-gray-100 group relative">
-            <RotateCcw className="w-5 h-5 text-gray-500 group-hover:text-black" />
+          <button onClick={handleReset} className="p-2 hover:bg-gray-100">
+            <RotateCcw className="w-5 h-5 text-gray-600" />
           </button>
-          <button onClick={handleClose} className="p-2 hover:bg-gray-100 group relative">
-            <X className="w-5 h-5 text-gray-500 group-hover:text-black" />
+          <button onClick={handleClose} className="p-2 hover:bg-gray-100">
+            <X className="w-5 h-5 text-gray-600" />
           </button>
         </div>
       </div>
@@ -140,25 +160,29 @@ function App() {
             {settings.welcome_text}
           </div>
         )}
-        {messages.map((msg, idx) => (
+        {messages.map((message, index) => (
           <ChatMessage
-            key={idx}
-            message={msg}
-            isStreaming={isStreaming && idx === messages.length - 1}
+            key={index}
+            id={id}
+            message={message}
+            isStreaming={isStreaming && index === messages.length - 1}
             threadId={threadId}
             messageHistory={messages}
-            id={id}
           />
         ))}
         <div ref={messagesEndRef} />
       </div>
 
-      <ChatInput onSend={handleSend} disabled={isStreaming} settings={settings} />
+      <ChatInput
+        onSend={handleSend}
+        disabled={isStreaming}
+        settings={{ input_placeholder: settings.input_placeholder }}
+      />
 
       {settings.show_poweredby && (
-        <a href="https://widgetplatform.com" target="_blank" className="text-center text-xs text-gray-400 py-2">
+        <div className="text-center text-xs text-gray-400 pb-2">
           Powered by Widget Platform
-        </a>
+        </div>
       )}
     </div>
   );
