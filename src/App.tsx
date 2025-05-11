@@ -138,7 +138,17 @@ function App() {
         }),
       });
 
-      const reader = response.body?.getReader();
+     const result = await response.json();
+const answer = result.content;
+
+setMessages(prev => {
+  const newMessages = [...prev];
+  newMessages[newMessages.length - 1] = {
+    role: 'assistant',
+    content: answer
+  };
+  return newMessages;
+});
       let assistantMessage = '';
 
       setMessages(prev => {
