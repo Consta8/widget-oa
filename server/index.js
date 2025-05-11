@@ -1,62 +1,81 @@
-const chatBox = document.getElementById("chat");
-const form = document.getElementById("chat-form");
-const input = document.getElementById("chat-input");
+import express from 'express';
+import cors from 'cors';
+import OpenAI from 'openai';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-form.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const message = input.value.trim();
-  if (!message) return;
-  input.value = "";
-  addUserMessageToChat(message);
-  await sendMessage(message);
+dotenv.config();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Определяем __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ✅ Отдаём собранный фронт по /app
+app.use('/app', express.static(path.join(__dirname, '../dist/app')));
+
+// ✅ Заглушка на корень
+app.get('/', (req, res) => {
+  res.send('⚡ Widget is running. Перейди по /app/index.html');
 });
 
-function addUserMessageToChat(message) {
-  const div = document.createElement("div");
-  div.className = "chat-bubble user";
-  div.innerText = message;
-  chatBox.appendChild(div);
-  scrollToBottom();
-}
+// ✅ Подключаем OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+const ASSISTANT_ID = process.env.ASSISTANT_ID;
 
-function addBotMessageToChat(message) {
-  const div = document.createElement("div");
-  div.className = "chat-bubble bot";
-  div.innerText = message;
-  chatBox.appendChild(div);
-  scrollToBottom();
-}
-
-function scrollToBottom() {
-  chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-async function sendMessage(message) {
+// ✅ Чат без стрима (стабильный)
+app.post('/chat', async (req, res) => {
   try {
-    addBotMessageToChat("💬 Thinking...");
+    const { message } = req.body;
 
-    const response = await fetch("/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ message })
-    });
-
-    const data = await response.json();
-    // удалить "Thinking..." и вставить настоящий ответ
-    const last = chatBox.querySelector(".chat-bubble.bot:last-child");
-    if (data.content) {
-      last.innerText = data.content;
-    } else if (data.error) {
-      last.innerText = "❌ Ошибка: " + data.error;
-    } else {
-      last.innerText = "🤷 Нет ответа от бота.";
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
     }
 
+    console.log('📩 Запрос:', message);
+
+    const thread = await openai.beta.threads.create();
+    const run = await openai.beta.threads.runs.create(thread.id, {
+      assistant_id: ASSISTANT_ID,
+      additional_messages: [{ role: 'user', content: message }]
+    });
+
+    // Ждём завершения
+    let runStatus;
+    while (true) {
+      runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+      if (runStatus.status === 'completed') break;
+      if (runStatus.status === 'failed') throw new Error('Run failed');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    const messages = await openai.beta.threads.messages.list(thread.id);
+    const lastMessage = messages.data.find(m => m.role === 'assistant');
+    const answer = lastMessage?.content?.[0]?.text?.value || '⚠️ Нет ответа';
+
+    console.log('📤 Ответ:', answer);
+    res.json({ content: answer });
+
   } catch (err) {
-    const last = chatBox.querySelector(".chat-bubble.bot:last-child");
-    last.innerText = "⚠️ Сбой сети или сервера.";
-    console.error("Chat error:", err);
+    console.error('🔥 Ошибка в /chat:', err.message);
+    res.status(500).json({ error: err.message });
   }
-}
+});
+
+// Заглушка под фидбэк
+app.post('/feedback', (req, res) => {
+  console.log('📝 Feedback получен:', req.body);
+  res.status(200).json({ message: 'OK' });
+});
+
+// Старт сервера
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
