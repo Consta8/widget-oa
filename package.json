@@ -5,14 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run build:app && npm run build:widget && npm run build:server",
+    "build": "npm run build:app && npm run build:widget",
     "build:app": "tsc && vite build",
     "build:widget": "vite build --config vite.widget.config.ts",
-    "build:server": "node server/index.js",
+    "start": "node server/index.js",
     "preview": "vite preview",
-    "start": "node dist/server/index.js",
-    "lint": "eslint .",
-    "server": "node server/index.js"
+    "lint": "eslint ."
   },
   "dependencies": {
     "compression": "^1.7.4",
