@@ -7,22 +7,29 @@ import { fileURLToPath } from 'url';
 
 dotenv.config();
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Отдача фронта (React виджета) по /app
+// Для __dirname в ES-модулях
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ✅ Раздача собранного сайта (виджет)
 app.use('/app', express.static(path.join(__dirname, '../dist/app')));
 
-// OpenAI
+// ✅ Заглушка на корень
+app.get('/', (req, res) => {
+  res.send('⚡ Widget is running. Try /app/index.html');
+});
+
+// 🔑 OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 const ASSISTANT_ID = process.env.ASSISTANT_ID;
 
-// Чат
+// 🤖 Чат-бот
 app.post('/chat', async (req, res) => {
   try {
     const { message } = req.body;
@@ -61,19 +68,19 @@ app.post('/chat', async (req, res) => {
 
     res.write('data: [DONE]\n\n');
     res.end();
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Internal Server Error' });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// Фидбэк (заглушка)
+// 📬 Заглушка под фидбэк
 app.post('/feedback', (req, res) => {
   res.status(200).json({ message: 'Feedback received' });
 });
 
-// Запуск сервера
-const PORT = process.env.PORT || 10000;
+// 🔥 Запуск сервера
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
