@@ -1,0 +1,12 @@
+# базовые исключения
+node_modules
+dist
+.env
+.env.local
+.env.production
+
+# Vite
+.vite
+
+# system
+.DS_Store
