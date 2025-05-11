@@ -3,8 +3,7 @@ import { ChatMessage } from './components/ChatMessage';
 import { ChatInput } from './components/ChatInput';
 import { X, RotateCcw } from 'lucide-react'; // Add RotateCcw import
 
-const API_ENDPOINT = "https://api-widget-oa.widgetplatform.com";
-
+const API_ENDPOINT = "";
 interface Message {
   role: 'user' | 'assistant';
   content: string;
